@@ -1,11 +1,11 @@
 # Software Requirements Specification (SRS)
 
-## Zee Library Manager API
+## ZY Library Manager API
 
 **Versi:** 1.0\
 **Status:** Draft untuk implementasi MVP\
 **Jenis sistem:** RESTful backend API\
-**Nama proyek:** `zee-library-manager-api`
+**Nama proyek:** `zy-library-manager-api`
 
 ------------------------------------------------------------------------
 
@@ -13,14 +13,14 @@
 
 ### 1.1 Tujuan Dokumen
 
-Dokumen ini menetapkan kebutuhan fungsional dan nonfungsional untuk Zee
+Dokumen ini menetapkan kebutuhan fungsional dan nonfungsional untuk ZY
 Library Manager API. Dokumen menjadi acuan implementasi, pengujian, dan
 evaluasi agar pengembangan dapat dilakukan tanpa perlu merancang ulang
 kebutuhan utama selama proses coding.
 
 ### 1.2 Tujuan Produk
 
-Zee Library Manager API adalah layanan backend untuk membantu pustakawan
+ZY Library Manager API adalah layanan backend untuk membantu pustakawan
 mengelola katalog buku, data anggota, serta proses peminjaman dan
 pengembalian buku. API menyediakan antarmuka HTTP berbasis JSON dan
 menyimpan data secara persisten di PostgreSQL.
@@ -621,7 +621,7 @@ Pembagian tanggung jawab yang disarankan:
 Struktur direktori awal yang mungkin:
 
 ``` text
-zee-library-manager-api/
+zy-library-manager-api/
 ├── cmd/
 │   └── api/
 │       └── main.go
