@@ -40,29 +40,14 @@ Deployment cloud dan observability tingkat lanjut.
 
 ### 1.4 Istilah
 
-  -----------------------------------------------------------------------
-  Istilah                             Definisi
-  ----------------------------------- -----------------------------------
-  API                                 Antarmuka HTTP yang digunakan
-                                      client untuk berinteraksi dengan
-                                      sistem
-
-  Book                                Data judul buku dalam katalog,
-                                      bukan satu eksemplar fisik
-                                      individual
-
-  Member                              Orang yang terdaftar sebagai
-                                      anggota perpustakaan
-
-  Loan                                Catatan peminjaman satu judul buku
-                                      oleh satu anggota
-
-  Available copies                    Jumlah eksemplar yang saat ini
-                                      dapat dipinjam
-
-  MVP                                 Versi minimum yang memenuhi
-                                      kebutuhan inti
-  -----------------------------------------------------------------------
+  | Istilah | Definisi |
+  | ------- | -------- |
+  | API | Antarmuka HTTP yang digunakan client untuk berinteraksi dengan sistem |
+  | Book | Data judul buku dalam katalog, bukan satu eksemplar fisik individual |
+  | Member | Orang yang terdaftar sebagai anggota perpustakaan |
+  | Loan | Catatan peminjaman satu judul buku oleh satu anggota |
+  | Available copies | Jumlah eksemplar yang saat ini dapat dipinjam |
+  | MVP | Versi minimum yang memenuhi kebutuhan inti |
 
 ### 1.5 Asumsi dan Keputusan MVP
 
@@ -90,15 +75,10 @@ Deployment cloud dan observability tingkat lanjut.
 
 ### 2.1 Kelas Pengguna
 
-  -----------------------------------------------------------------------
-  Pengguna                            Kebutuhan
-  ----------------------------------- -----------------------------------
-  Pustakawan/operator                 Mengelola buku, anggota,
-                                      peminjaman, dan pengembalian
-
-  Client API (misalnya Postman atau   Mengirim request dan membaca
-  aplikasi lain)                      response JSON
-  -----------------------------------------------------------------------
+  | Pengguna | Kebutuhan |
+  | -------- | --------- | 
+  | Pustakawan/operator | Mengelola buku, anggota, peminjaman, dan pengembalian |
+  | Client API (misalnya Postman atau Mengirim request dan membaca aplikasi lain) | response JSON |
 
 Autentikasi dan pembatasan akses berdasarkan identitas pengguna tidak
 termasuk MVP.
@@ -753,3 +733,7 @@ baseline implementasi, bukan alasan untuk membangun semua fitur
 sekaligus. Jika ditemukan kebutuhan yang bertentangan atau keputusan
 yang belum jelas saat implementasi, catat perubahan pada dokumen sebelum
 mengubah kontrak API atau skema data.
+
+JANGAN MODIFIKASI KODE SENDIRI KECUALI PENGGUNA MEMINTANYA.
+JELASKAN LANGKAH-LANGKAH TERPERINCI APA YANG HARUS DILAKUKAN PENGGUNA
+PADA KODE PROGRAM DI SETIAP FILE.
