@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"zy-library-manager/internal/book"
 	"zy-library-manager/internal/database"
 
 	"github.com/joho/godotenv"
@@ -22,13 +23,13 @@ func init() {
 
 func main() {
 
-	// load DATABASE_URL
+	// Load DATABASE_URL dari .env .
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
 		log.Fatal("DATABASE_URL is required")
 	}
 
-	// test database connection
+	// Test database connection.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	db, err := database.Open(ctx, dsn)
 	cancel()
@@ -37,9 +38,17 @@ func main() {
 	}
 	defer db.Close()
 
+	// Create new Book Repository
+	bookRepository := book.NewRepository(db)
+	bookHandler := book.NewHandler(bookRepository)
+
+	// New Multiplexer.
 	mux := http.NewServeMux()
 
-	// endpoint /health
+	// Endpoint POST /api/v1/books
+	mux.HandleFunc("POST /api/v1/books", bookHandler.Create)
+
+	// Endpoint /health .
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
@@ -50,7 +59,7 @@ func main() {
 		}
 	})
 
-	// endpoint /ready
+	// Endpoint /ready .
 	mux.HandleFunc("GET /ready", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
