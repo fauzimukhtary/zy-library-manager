@@ -47,6 +47,7 @@ func main() {
 
 	// Endpoint POST /api/v1/books
 	mux.HandleFunc("POST /api/v1/books", bookHandler.Create)
+	mux.HandleFunc("GET /api/v1/books", bookHandler.List)
 
 	// Endpoint /health .
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
