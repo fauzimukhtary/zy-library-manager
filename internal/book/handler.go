@@ -8,6 +8,7 @@ import (
 	"log"
 	"mime"
 	"net/http"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -15,6 +16,7 @@ import (
 // Deklarasi interface bookCreator
 type bookCreator interface {
 	Create(context.Context, CreateBookRequest) (Book, error)
+	List(context.Context, int, int) ([]Book, int, error)
 }
 
 // Method Create milik struct Handler
@@ -42,10 +44,10 @@ func (handler *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Membatasi ukuran body harus di bawah 1 MB (2^20 Bytes).
+	// Membatasi ukuran body di bawah 1 MB (2^20 Bytes).
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 
-	var input CreateBookRequest
+	input := CreateBookRequest{TotalCopies: -1}
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&input); err != nil {
@@ -94,7 +96,7 @@ func (handler *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Jalankan query
+	// QUERY EXECUTION
 	created, err := handler.creator.Create(r.Context(), input)
 	if errors.Is(err, ErrDuplicateISBN) {
 		// Jika ISBN sudah ada, throw error ke client
@@ -128,11 +130,96 @@ func (handler *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Method List milik struct Handler
+func (handler *Handler) List(w http.ResponseWriter, r *http.Request) {
+	// Mengambil nilai parameter page
+	page, err := parsePageParameter(r, "page", 1, 0)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
+		return
+	}
+
+	// Mengambil nilai parameter page_size
+	pageSize, err := parsePageParameter(r, "page_size", 20, 100)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
+		return
+	}
+
+	maxInt := int(^uint(0) >> 1)
+	if page-1 > maxInt/pageSize {
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "page is too large")
+		return
+	}
+	offset := (page - 1) * pageSize
+
+	// QUERY EXECUTION
+	books, totalItems, err := handler.creator.List(r.Context(), pageSize, offset)
+	if err != nil {
+		// Error dari database HANYA dicatat di log server.
+		log.Printf("list books: %v", err)
+		writeError(
+			w,
+			http.StatusInternalServerError,
+			"INTERNAL_ERROR",
+			"An unexpected error occured",
+		)
+		return
+	}
+
+	// Total halaman menurut pageSize
+	totalPages := 0
+	if totalItems > 0 {
+		totalPages = (totalItems-1)/pageSize + 1
+	}
+
+	// Kirim response ke client
+	response := ListBooksResponse{
+		Data: books,
+		Pagination: Pagination{
+			Page:       page,
+			PageSize:   pageSize,
+			TotalItems: totalItems,
+			TotalPages: totalPages,
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("write list books response: %v", err)
+	}
+}
+
 func normalizeISBN(isbn string) string {
 	isbn = strings.TrimSpace(isbn)
 	isbn = strings.ReplaceAll(isbn, "-", "")
 	isbn = strings.ReplaceAll(isbn, " ", "")
 	return isbn
+}
+
+func parsePageParameter(
+	r *http.Request,
+	name string,
+	defaultValue int,
+	maxValue int,
+) (int, error) {
+	values, exists := r.URL.Query()[name]
+	if !exists {
+		return defaultValue, nil
+	}
+	if len(values) != 1 || values[0] == "" {
+		return 0, errors.New(name + " must be a positive integer")
+	}
+
+	value, err := strconv.Atoi(values[0])
+	if err != nil || value < 1 {
+		return 0, errors.New(name + " must be a positive integer")
+	}
+	if maxValue > 0 && value > maxValue {
+		return 0, errors.New(name + " must not exceed 100")
+	}
+
+	return value, nil
 }
 
 func validateCreateBook(input CreateBookRequest) error {
@@ -143,7 +230,7 @@ func validateCreateBook(input CreateBookRequest) error {
 
 	authorLength := utf8.RuneCountInString(input.Author)
 	if authorLength < 1 || authorLength > 150 {
-		return errors.New("author must be between 1 and 200 characters")
+		return errors.New("author must be between 1 and 150 characters")
 	}
 
 	if !validISBNFormat(input.ISBN) {
