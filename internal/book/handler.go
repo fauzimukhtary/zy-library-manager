@@ -226,8 +226,10 @@ func normalizeISBN(isbn string) string {
 func parseAndDecodeSearchQueryParameter(r *http.Request) (string, error) {
 	raw := r.URL.RawQuery
 
-	value, exists := parseQueryValue(raw, "q")
-
+	value, exists, err := parseQueryValue(raw, "q")
+	if err != nil {
+		return "", err
+	}
 	if !exists {
 		return "", nil
 	}
@@ -243,8 +245,10 @@ func parseAndDecodeSearchQueryParameter(r *http.Request) (string, error) {
 
 func parseAvailableParameter(r *http.Request) (string, error) {
 	raw := r.URL.RawQuery
-	value, exists := parseQueryValue(raw, "available")
-
+	value, exists, err := parseQueryValue(raw, "available")
+	if err != nil {
+		return "", err
+	}
 	if !exists {
 		return "", nil
 	}
@@ -281,7 +285,8 @@ func parsePageParameter(
 	return value, nil
 }
 
-func parseQueryValue(rawQuery, paramName string) (string, bool) {
+func parseQueryValue(rawQuery, paramName string) (string, bool, error) {
+	var err error = nil
 	exists := false
 	qValue := ""
 
@@ -289,13 +294,17 @@ func parseQueryValue(rawQuery, paramName string) (string, bool) {
 	for _, pair := range pairs {
 		kv := strings.SplitN(pair, "=", 2)
 		if len(kv) == 2 && kv[0] == paramName {
-			qValue = kv[1]
-			exists = true
-			break
+			if !exists {
+				qValue = kv[1]
+				exists = true
+			} else {
+				err = errors.New("duplicate parameter value")
+				break
+			}
 		}
 	}
 
-	return qValue, exists
+	return qValue, exists, err
 }
 
 func validateCreateBook(input CreateBookRequest) error {
