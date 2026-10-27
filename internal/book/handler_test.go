@@ -25,6 +25,7 @@ type fakeCreator struct {
 	listLimit  int
 	listOffset int
 	listCalled bool
+	listFilter book.Filter
 }
 
 func (fake *fakeCreator) Create(
@@ -40,10 +41,12 @@ func (fake *fakeCreator) List(
 	_ context.Context,
 	limit int,
 	offset int,
+	filter book.Filter,
 ) ([]book.Book, int, error) {
 	fake.listCalled = true
 	fake.listLimit = limit
 	fake.listOffset = offset
+	fake.listFilter = filter
 	return fake.listResult, fake.totalItems, fake.listErr
 }
 
@@ -137,6 +140,198 @@ func TestListBookInvalidParameter(t *testing.T) {
 	}
 }
 
+func TestListBookWithSearchFilterWithoutAvailableParam(t *testing.T) {
+	creator := &fakeCreator{}
+	handler := book.NewHandler(creator)
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/books",
+		nil,
+	)
+
+	query := url.Values{}
+	query.Add("q", "clean")
+	request.URL.RawQuery = query.Encode()
+
+	response := httptest.NewRecorder()
+	handler.List(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status code: %d, got %d", http.StatusOK, response.Code)
+	}
+
+	if !creator.listCalled {
+		t.Fatal("expected repository to be called")
+	}
+
+	if !creator.listFilter.SearchQueryParam {
+		t.Error("expected search filter to be enabled")
+	}
+
+	if creator.listFilter.SearchQuery != "clean" {
+		t.Errorf("expected search query clean, got %q", creator.listFilter.SearchQuery)
+	}
+
+	if creator.listFilter.AvailableParam || creator.listFilter.Available {
+		t.Error("expected availability filter to be disabled")
+	}
+}
+
+func TestListBookWithAvailableTrue(t *testing.T) {
+	creator := &fakeCreator{}
+	handler := book.NewHandler(creator)
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/books",
+		nil,
+	)
+
+	query := url.Values{}
+	query.Add("available", "true")
+	request.URL.RawQuery = query.Encode()
+
+	response := httptest.NewRecorder()
+	handler.List(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status code: %d, got %d", http.StatusOK, response.Code)
+	}
+
+	if !creator.listCalled {
+		t.Fatal("expected repository to be called")
+	}
+
+	if creator.listFilter.SearchQueryParam || creator.listFilter.SearchQuery != "" {
+		t.Error("expected search filter to be disabled")
+	}
+
+	if !creator.listFilter.AvailableParam {
+		t.Error("expected availability filter to be enabled")
+	}
+
+	if !creator.listFilter.Available {
+		t.Error("expected availability to be true")
+	}
+}
+
+func TestListBookWithAvailableFalse(t *testing.T) {
+	creator := &fakeCreator{}
+	handler := book.NewHandler(creator)
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/books",
+		nil,
+	)
+
+	query := url.Values{}
+	query.Add("available", "false")
+	request.URL.RawQuery = query.Encode()
+
+	response := httptest.NewRecorder()
+	handler.List(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status code: %d, got %d", http.StatusOK, response.Code)
+	}
+
+	if !creator.listCalled {
+		t.Fatal("expected repository to be called")
+	}
+
+	if creator.listFilter.SearchQueryParam || creator.listFilter.SearchQuery != "" {
+		t.Error("expected search filter to be disabled")
+	}
+
+	if !creator.listFilter.AvailableParam {
+		t.Error("expected availability filter to be enabled")
+	}
+
+	if creator.listFilter.Available {
+		t.Error("expected availability to be false")
+	}
+}
+func TestListBookWithInvalidSearchParam(t *testing.T) {
+	creator := &fakeCreator{}
+	handler := book.NewHandler(creator)
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/books",
+		nil,
+	)
+
+	query := url.Values{}
+	query.Add("q", "")
+	request.URL.RawQuery = query.Encode()
+
+	response := httptest.NewRecorder()
+	handler.List(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected status code: %d, got %d", http.StatusBadRequest, response.Code)
+	}
+
+	if creator.listCalled {
+		t.Fatal("expected repository not to be called")
+	}
+}
+
+func TestListBookWithInvalidAvailableParam(t *testing.T) {
+	creator := &fakeCreator{}
+	handler := book.NewHandler(creator)
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/books",
+		nil,
+	)
+
+	query := url.Values{}
+	query.Add("available", "not false")
+	request.URL.RawQuery = query.Encode()
+
+	response := httptest.NewRecorder()
+	handler.List(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected status code: %d, got %d", http.StatusBadRequest, response.Code)
+	}
+
+	if creator.listCalled {
+		t.Fatal("expected repository not to be called")
+	}
+}
+
+func TestListBookWithDuplicateAvailableParam(t *testing.T) {
+	creator := &fakeCreator{}
+	handler := book.NewHandler(creator)
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/books",
+		nil,
+	)
+
+	query := url.Values{}
+	query.Add("available", "false")
+	query.Add("available", "true")
+	request.URL.RawQuery = query.Encode()
+
+	response := httptest.NewRecorder()
+	handler.List(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected status code: %d, got %d", http.StatusBadRequest, response.Code)
+	}
+
+	if creator.listCalled {
+		t.Fatal("expected repository not to be called")
+	}
+}
+
 func TestListBookHidesUnexpectedRepositoryError(t *testing.T) {
 	creator := &fakeCreator{listErr: errors.New("database details")}
 	handler := book.NewHandler(creator)
@@ -146,6 +341,13 @@ func TestListBookHidesUnexpectedRepositoryError(t *testing.T) {
 		"/api/v1/books",
 		nil,
 	)
+
+	query := url.Values{}
+	query.Add("page_size", "10")
+	query.Add("page", "2")
+	query.Add("q", "ace")
+	query.Add("available", "true")
+	request.URL.RawQuery = query.Encode()
 
 	response := httptest.NewRecorder()
 	handler.List(response, request)
