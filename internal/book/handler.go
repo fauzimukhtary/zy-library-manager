@@ -8,6 +8,7 @@ import (
 	"log"
 	"mime"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -16,7 +17,7 @@ import (
 // Deklarasi interface bookCreator
 type bookCreator interface {
 	Create(context.Context, CreateBookRequest) (Book, error)
-	List(context.Context, int, int) ([]Book, int, error)
+	List(context.Context, int, int, Filter) ([]Book, int, error)
 }
 
 // Method Create milik struct Handler
@@ -146,6 +147,31 @@ func (handler *Handler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var filter Filter
+	// Mengambil nilai parameter q
+	searchQuery, err := parseAndDecodeSearchQueryParameter(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
+		return
+	}
+
+	// Mengambil nilai parameter available
+	available, err := parseAvailableParameter(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
+		return
+	}
+
+	if searchQuery != "" {
+		filter.SearchQueryParam = true
+		filter.SearchQuery = searchQuery
+	}
+
+	if available != "" {
+		filter.AvailableParam = true
+		filter.Available, _ = strconv.ParseBool(available)
+	}
+
 	maxInt := int(^uint(0) >> 1)
 	if page-1 > maxInt/pageSize {
 		writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "page is too large")
@@ -153,8 +179,8 @@ func (handler *Handler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	offset := (page - 1) * pageSize
 
-	// QUERY EXECUTION
-	books, totalItems, err := handler.creator.List(r.Context(), pageSize, offset)
+	// Query Execution
+	books, totalItems, err := handler.creator.List(r.Context(), pageSize, offset, filter)
 	if err != nil {
 		// Error dari database HANYA dicatat di log server.
 		log.Printf("list books: %v", err)
@@ -197,6 +223,39 @@ func normalizeISBN(isbn string) string {
 	return isbn
 }
 
+func parseAndDecodeSearchQueryParameter(r *http.Request) (string, error) {
+	raw := r.URL.RawQuery
+
+	value, exists := parseQueryValue(raw, "q")
+
+	if !exists {
+		return "", nil
+	}
+
+	encodedSearchQuery, err := url.QueryUnescape(value)
+	if err != nil || encodedSearchQuery == "" {
+		return "", errors.New("search keyword invalid")
+	}
+	encodedSearchQuery = strings.TrimSpace(encodedSearchQuery)
+
+	return encodedSearchQuery, nil
+}
+
+func parseAvailableParameter(r *http.Request) (string, error) {
+	raw := r.URL.RawQuery
+	value, exists := parseQueryValue(raw, "available")
+
+	if !exists {
+		return "", nil
+	}
+
+	if value != "true" && value != "false" {
+		return "", errors.New("available parameter invalid")
+	}
+
+	return value, nil
+}
+
 func parsePageParameter(
 	r *http.Request,
 	name string,
@@ -220,6 +279,23 @@ func parsePageParameter(
 	}
 
 	return value, nil
+}
+
+func parseQueryValue(rawQuery, paramName string) (string, bool) {
+	exists := false
+	qValue := ""
+
+	pairs := strings.Split(rawQuery, "&")
+	for _, pair := range pairs {
+		kv := strings.SplitN(pair, "=", 2)
+		if len(kv) == 2 && kv[0] == paramName {
+			qValue = kv[1]
+			exists = true
+			break
+		}
+	}
+
+	return qValue, exists
 }
 
 func validateCreateBook(input CreateBookRequest) error {
