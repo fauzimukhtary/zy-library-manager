@@ -30,7 +30,7 @@ func (repo *Repository) Create(
 		INSERT INTO books (title, author, isbn, total_copies)
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (isbn) DO NOTHING
-		RETURNING id, title, author, isbn, total_copies, created_at, updated_at;
+		RETURNING id, title, author, isbn, total_copies, created_at, updated_at
 	`
 
 	// Eksekusi query sekaligus mengembalikan data id, title, author, dll,
@@ -72,15 +72,9 @@ func (repo *Repository) List(
 	ctx context.Context,
 	limit int,
 	offset int,
+	filter Filter,
 ) ([]Book, int, error) {
-	const countQuery = `SELECT COUNT(*) FROM books;`
-
-	var totalItems int
-	if err := repo.db.QueryRowContext(ctx, countQuery).Scan(&totalItems); err != nil {
-		return nil, 0, fmt.Errorf("count books: %w", err)
-	}
-
-	const listQuery = `
+	listQuery := `
 		SELECT
 			id,
 			title,
@@ -91,11 +85,68 @@ func (repo *Repository) List(
 			created_at,
 			updated_at
 		FROM books
-		ORDER BY id
-		LIMIT $1 OFFSET $2;
 	`
 
-	rows, err := repo.db.QueryContext(ctx, listQuery, limit, offset)
+	countQuery := ` SELECT COUNT(*) FROM books `
+	concat := ``
+
+	if !filter.SearchQueryParam && filter.AvailableParam && !filter.Available {
+		concat += ` WHERE total_copies = 0 `
+	}
+
+	if !filter.SearchQueryParam && filter.AvailableParam && filter.Available {
+		concat += ` WHERE total_copies > 0 `
+	}
+
+	if filter.SearchQueryParam {
+		listQuery += `
+			WHERE 
+				(title ILIKE '%' || $3 || '%' 
+				OR author ILIKE '%' || $3 || '%')
+		`
+		countQuery += `
+			WHERE 
+				(title ILIKE '%' || $1 || '%' 
+				OR author ILIKE '%' || $1 || '%')
+		`
+	}
+
+	if filter.SearchQueryParam && filter.AvailableParam && !filter.Available {
+		concat += ` AND total_copies = 0 `
+	}
+
+	if filter.SearchQueryParam && filter.AvailableParam && filter.Available {
+		concat += ` AND total_copies > 0 `
+
+	}
+
+	countQuery += concat
+	listQuery += concat + `
+		ORDER BY id
+		LIMIT $1 OFFSET $2
+	`
+
+	var totalItems int
+	var err error
+
+	if filter.SearchQueryParam {
+		err = repo.db.QueryRowContext(ctx, countQuery, filter.SearchQuery).Scan(&totalItems)
+	}
+	if !filter.SearchQueryParam {
+		err = repo.db.QueryRowContext(ctx, countQuery).Scan(&totalItems)
+	}
+	if err != nil {
+		return nil, 0, fmt.Errorf("count books: %w", err)
+	}
+
+	var rows *sql.Rows
+
+	if filter.SearchQueryParam {
+		rows, err = repo.db.QueryContext(ctx, listQuery, limit, offset, filter.SearchQuery)
+	}
+	if !filter.SearchQueryParam {
+		rows, err = repo.db.QueryContext(ctx, listQuery, limit, offset)
+	}
 	if err != nil {
 		return nil, 0, fmt.Errorf("list books: %w", err)
 	}
